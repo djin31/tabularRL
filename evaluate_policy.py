@@ -1,8 +1,8 @@
-from simulator import Environment, get_states_list
-from policy import get_dealer_policy
+from simulator import Environment, get_states_list, get_dealer_policy
 import numpy as np 
 
 np.random.seed(3120)
+
 
 def run_episode(policy, debug=False):
     episode_stack = []

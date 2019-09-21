@@ -4,9 +4,9 @@ np.random.seed(3120)
 
 special_cards = set([1,2,3])
 
-win_state = (-1,31,0)
-lose_state = (31,-1,0)
-draw_state = (-1,-1,0)
+win_state = "WIN"
+lose_state = "LOSE"
+draw_state = "DRAW"
 win_reward = 1
 lose_reward = -1
 draw_reward= 0
@@ -16,17 +16,35 @@ def get_states_list():
     for dealer_hand in range(1,11):
         if dealer_hand==0:
             continue
-        for hand_sum in range(0,32):
-            for player_hand_softness in range(0,4):
+        for player_hand_softness in range(0,4):
+            for hand_sum in range(-10*player_hand_softness,32):
                 state_list.append((dealer_hand, hand_sum, player_hand_softness))
     state_list+=[lose_state, win_state, draw_state]
     return state_list
+
+
+def get_dealer_policy():
+    state_list = get_states_list()
+
+    dealer_policy = {}
+    
+    for state in state_list:
+        if type(state)!=tuple:
+            dealer_policy[state]=0
+            continue
+        player_hand = state[1]  
+        player_hand_softness = state[2]
+        if player_hand+player_hand_softness*10 < 25:
+            dealer_policy[state]=1
+        else:
+            dealer_policy[state]=0
+    return dealer_policy
 
 class Environment:
     def __init__(self,debug=False):
         """
         curr_state: A 3 tuple indicating 
-                    (dealer_hand, player_hand (indicating max valid sum possible), number of cards which can be converted to soft)
+                    (dealer_hand, hard_sum , number of special cards)
         """
         self.curr_state = None
         self.done = 0
@@ -72,15 +90,14 @@ class Environment:
         """
         reset state and done
         """
+        self.face_cards = set()
         self.curr_state = self.sample_init_state()
         self.done = 0
-        self.face_cards = set()
     
-    def play_dealer(self):
+    def play_dealer(self, dealer_hand, player_hand):
         """
         play the dealer's strategy and return the reward
         """
-        dealer_hand = self.curr_state[0]
         dealer_face_cards = set()
         if (dealer_hand in special_cards):
             dealer_hand+=10
@@ -98,9 +115,6 @@ class Environment:
                 dealer_face_cards.add(card)
             if self.debug:
                 print ("Dealer at", dealer_hand)
-            # player wins
-            if dealer_hand<0:
-                return dealer_hand,1
 
             if dealer_hand>=25:
                 break
@@ -108,15 +122,25 @@ class Environment:
         # if the dealer can save itself then reduce special card value else go bust
         if dealer_hand>35 and dealer_hand_softness>0:
             dealer_hand-=10
-        else:
-            return dealer_hand,1
+        
 
-        if dealer_hand>self.curr_state[1]:
-            return dealer_hand,-1
-        elif dealer_hand==self.curr_state[1]:
-            return dealer_hand,0
+        dealer_valid = (dealer_hand in range(0,32))
+        player_valid = (player_hand in range(0,32))
+
+        if dealer_valid==False:
+            if player_valid:
+                return win_reward
+            else:
+                return draw_reward
+        if player_valid==False:
+            return lose_reward
+
+        if dealer_hand>player_hand:
+            return lose_reward
+        elif dealer_hand==player_hand:
+            return draw_reward
         else:
-            return dealer_hand,1    
+            return win_reward
 
 
     def step(self, action):
@@ -128,7 +152,7 @@ class Environment:
         """
 
         if (self.debug):
-            print("In state", self.curr_state)
+            print("In state", self.curr_state,"with", self.face_cards)
 
         # check if game is done
         if (self.done):
@@ -157,14 +181,9 @@ class Environment:
             dealer_hand = self.curr_state[0]
             self.curr_state = (dealer_hand, player_hand, player_hand_softness)
 
-            if player_hand<0:
-                if player_hand_softness>0:
-                    player_hand+= 10
-                    player_hand_softness-= 1
-                    self.curr_state = (dealer_hand, player_hand, player_hand_softness)
-                else:
-                    self.done=1
-                    return lose_state,lose_reward,self.done
+            if player_hand + player_hand_softness*10<0:
+                self.done=1
+                return lose_state,lose_reward,self.done
 
             if player_hand>31:
                 self.done=1
@@ -180,13 +199,9 @@ class Environment:
             while(player_hand<=21 and player_hand_softness>0):
                 player_hand+=10
                 player_hand_softness-=1
-            self.curr_state=(self.curr_state[0], player_hand, player_hand_softness)
 
-            if player_hand==31:
-                self.done=1
-                return win_state, win_reward, self.done
-
-            dealer_hand, reward = self.play_dealer()
+            dealer_hand = self.curr_state[0]
+            reward = self.play_dealer(dealer_hand, player_hand)
             if reward>0:
                 self.curr_state = win_state
             elif reward==0:
