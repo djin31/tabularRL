@@ -1,4 +1,6 @@
 import numpy as np 
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 np.random.seed(3120)
 
@@ -40,6 +42,30 @@ def get_dealer_policy():
             dealer_policy[state]=0
     return dealer_policy
 
+def plot_dealer_policy(q_function, policy):
+
+    def get_q_plane(q_function, policy, softness=0):
+        q_plane = np.zeros((10,32))
+        for dealer_hand in range(1,11):
+            for player_hand in range(-10*softness,32-10*softness):
+                q_plane[dealer_hand-1][player_hand+softness*10] = q_function[((dealer_hand,player_hand, softness), policy[(dealer_hand,player_hand, softness)])]
+        return q_plane
+    
+    fig = plt.figure(figsize=(16, 16))
+    for i in range(4):
+        ax = fig.add_subplot(221+i, projection='3d')
+        _x = np.arange(10)
+        _y = np.arange(-10*i,32-10*i)
+        _xx, _yy = np.meshgrid(_x, _y)
+        top = np.array(get_q_plane(q_function, policy, i))
+        ax.plot_wireframe(_xx,_yy,top.T)
+        ax.set_title("Special Card: "+str(i))
+        ax.set_xlabel("Dealer card")
+        ax.set_ylabel("Hard Sum")
+        ax.set_zlabel("Value")
+    plt.show()
+    plt.savefig("DealerPolicy.jpg")
+
 class Environment:
     def __init__(self,debug=False):
         """
@@ -78,12 +104,17 @@ class Environment:
             self.face_cards.add(player_hand)
 
         # handling special cases
-        if player_hand<0 and dealer_hand<0:
-            return draw_state
-        if player_hand<0:
-            return lose_state
-        if dealer_hand<0:
-            return win_state
+        # if player_hand<0 and dealer_hand<0:
+        #     return draw_state
+        # if player_hand<0:
+        #     return lose_state
+        # if dealer_hand<0:
+        #     return win_state
+
+        # remove redundant cases
+        if (player_hand<0 or dealer_hand<0):
+            return self.sample_init_state()
+            
         return (dealer_hand,player_hand, player_hand_softness)
 
     def reset(self):
