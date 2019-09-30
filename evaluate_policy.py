@@ -3,7 +3,6 @@ import numpy as np
 
 np.random.seed(3120)
 
-
 def run_episode(policy, debug=False):
     episode_stack = []
     env = Environment(debug)

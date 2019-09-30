@@ -1,5 +1,6 @@
 import numpy as np 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 
 np.random.seed(3120)
@@ -63,8 +64,39 @@ def plot_dealer_policy(q_function, policy):
         ax.set_xlabel("Dealer card")
         ax.set_ylabel("Hard Sum")
         ax.set_zlabel("Value")
-    plt.show()
     plt.savefig("DealerPolicy.jpg")
+    plt.show()
+
+def plot_policy(q_function, policy, plot_type=0):
+
+    def get_q_plane(q_function, policy, softness=0):
+        q_plane = np.zeros((10,32+10*softness))
+        for dealer_hand in range(1,11):
+            for player_hand in range(-10*softness,32):
+                q_plane[dealer_hand-1][player_hand+softness*10] = q_function[((dealer_hand,player_hand, softness), policy[(dealer_hand,player_hand, softness)])]
+        return q_plane
+    
+    fig = plt.figure(figsize=(16, 16))
+    for i in range(4):
+        ax = fig.add_subplot(221+i, projection='3d')
+        _x = np.arange(10)
+        _y = np.arange(-10*i,32)
+        _xx, _yy = np.meshgrid(_x, _y)
+        top = np.array(get_q_plane(q_function, policy, i))
+        if plot_type==0:
+            ax.plot_wireframe(_xx,_yy,top.T)
+        else:
+            surf = ax.plot_surface(_xx, _yy, top.T, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+        ax.set_title("Special Card: "+str(i))
+        ax.set_xlabel("Dealer card")
+        ax.set_ylabel("Hard Sum")
+        ax.set_zlabel("Value")
+    fig.suptitle("State Value Function")
+    plt.savefig("DealerPolicy.jpg")
+    plt.show()
+
+
 
 class Environment:
     def __init__(self,debug=False):
@@ -84,12 +116,12 @@ class Environment:
         """ 
         card = np.random.randint(1,11)
         if (np.random.randint(0,3)==0):
-            if self.debug:
-                print("Drew Card",-card)
+            # if self.debug:
+            #     print("Drew Card",-card)
             return -card
         else:
-            if self.debug:
-                print("Drew Card",card)
+            # if self.debug:
+            #     print("Drew Card",card)
             return card
 
     def sample_init_state(self):
@@ -144,8 +176,8 @@ class Environment:
                 dealer_hand+=10
                 dealer_hand_softness+=1
                 dealer_face_cards.add(card)
-            if self.debug:
-                print ("Dealer at", dealer_hand)
+            # if self.debug:
+            #     print ("Dealer at", dealer_hand)
 
             if dealer_hand>=25:
                 break
