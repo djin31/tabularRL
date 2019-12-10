@@ -1,28 +1,37 @@
-from simulator import Environment, get_states_list, get_dealer_policy
+from blackjack_simulator import BlackJack as Environment
 import numpy as np 
 
 np.random.seed(3120)
 
+"""
+All the algorithms work with assumption that we are working with episodic 
+task and rewards indicating win and loss. 
+With slight modifications, we can add in intermediate rewards as well.
+"""
+
 def run_episode(policy, debug=False):
+    """
+    run one complete episode using given policy
+    """
     episode_stack = []
     env = Environment(debug)
     state = env.curr_state
     episode_stack.append((state,policy[state]))
     while True:
         state, reward, done = env.step(policy[state])
-        if (state!=episode_stack[-1]):
-            episode_stack.append((state, policy[state]))
+        episode_stack.append((state, policy[state]))
         if done==1:
             return episode_stack, reward
 
-
-def mc_first_visit(policy, number_of_episodes=100, debug=False):
-    states = policy.keys()
+def mc_first_visit(policy, number_of_episodes=100, debug=False, gamma=1):
+    env = Environment()
+    states = env.get_state_space()
+    actions = env.get_action_space()
     q_function = {}
     num_visits = {}
 
     for state in states:
-        for action in range(0,2):
+        for action in actions:
             q_function[(state, action)] = 0
             num_visits[(state, action)] = 0
     
@@ -46,12 +55,14 @@ def mc_first_visit(policy, number_of_episodes=100, debug=False):
 
 
 def mc_every_visit(policy, number_of_episodes=100, debug=False):
-    states = policy.keys()
+    env = Environment()
+    states = env.get_state_space()
+    actions = env.get_action_space()
     q_function = {}
     num_visits = {}
 
     for state in states:
-        for action in range(0,2):
+        for action in actions:
             q_function[(state, action)] = 0
             num_visits[(state, action)] = 0
     
@@ -72,69 +83,37 @@ def mc_every_visit(policy, number_of_episodes=100, debug=False):
                 print(s, q_function[s])
     return q_function
 
-
 def k_step_td(policy, k_step=1, number_of_episodes=100, lr=0.1, debug=False):
-    states = policy.keys()
+    env = Environment()
+    states = env.get_state_space()
+    actions = env.get_action_space()
     q_function = {}
 
     for state in states:
-        for action in range(0,2):
+        for action in actions:
             q_function[(state, action)] = 0
-
-    env = Environment(debug)
 
     for episode in range(number_of_episodes):
         if debug:
             print("Episode", episode)
+        
+        k_history = [] 
         env.reset()
+        while True:
+            state = env.curr_state
+            k_history.append((state, policy[state]))
+            new_state, reward, done = env.step(policy[state])
+            if (len(k_history)>k_step):
+                old_state_action_pair = k_history[0]
+                k_history = k_history[1:]
 
-        step_counter=0
-        done=0
-        state = env.curr_state
-        reward=0
-        state_stack = [None]*k_step
-        while(done!=True):
-            state, reward, done = env.step(policy[state])
-            update_state = state_stack[step_counter] 
-            state_stack[step_counter] = state
-            step_counter = (step_counter+1)%k_step
-            if update_state!=None:
-                q_function[(update_state, policy[update_state])]+=  lr*(q_function[(state, policy[state])] - q_function[(update_state, policy[update_state])])
-        
-        for state in state_stack:
-            if state!=None:
-                q_function[(state, policy[state])]+= lr*(reward - q_function[(state, policy[state])])
-        if debug:
-            for s in q_function:
-                if q_function[s]!=0:
-                    print(s, q_function[s])
-        if debug:
-            print("End Episode", episode)
-    if debug:
-        for s in q_function:
-            if q_function[s]!=0:
-                print(s, q_function[s])
-    return q_function
+                q_function[old_state_action_pair]+=lr*(reward+q_function[(new_state, policy[new_state])]-q_function[old_state_action_pair])
+            
+            if (done==1):
+                break
+        for state_action in k_history:
+            q_function[state_action]+=lr*(reward-q_function[state_action])
 
-def k_step_td_eff(policy, k_step=1, number_of_episodes=100, lr=0.1, debug=False):
-    states = policy.keys()
-    q_function = {}
-
-    for state in states:
-        for action in range(0,2):
-            q_function[(state, action)] = 0
-
-    for episode in range(number_of_episodes):
-        if debug:
-            print("Episode", episode)
-        episode_stack, reward = run_episode(policy,debug)
-        
-        q_function[episode_stack[-1]]+=lr*(reward - q_function[episode_stack[-1]])
-        T = len(episode_stack)-1
-        for i, pair in enumerate(episode_stack[:-1]):
-            q_function[pair] += lr*(q_function[episode_stack[min(i+k_step,T)]]-q_function[pair])
-        if debug:
-            print("End Episode", episode)
     if debug:
         for s in q_function:
             if q_function[s]!=0:
